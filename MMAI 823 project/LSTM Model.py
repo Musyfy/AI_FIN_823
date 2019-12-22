@@ -10,15 +10,19 @@ from keras.callbacks import EarlyStopping, ModelCheckpoint
 quandl.ApiConfig.api_key = "uRMo697HgMj91ZZZa2_v"
 data = quandl.get_table('WIKI/PRICES', qopts = { 'columns': ['ticker', 'date', 'adj_close'] }, ticker = ['AAPL'], date = { 'gte': '2009-01-01', 'lte': '2019-12-19' })
 data.sort_values(by='date', ascending=True,inplace =True)
+data["return"] = data["adj_close"].shift(1) / data["adj_close"] - 1
+data = data.fillna(0)
 data_1 = data.iloc[:1957]
 data_2 = data[1957:]###365
 plt.figure(figsize = (20,14))
-plt.plot(range(data.shape[0]),(data['adj_close']))
+plt.plot(range(data.shape[0]),(data['return']))
 plt.xticks(range(0,data.shape[0],1000),data['date'].loc[::1000],rotation=45)
 plt.xlabel('Date',fontsize=18)
 plt.ylabel('Closed Price',fontsize=18)
 plt.show()
-#######################
+###############################################
+##  Feature engineering construct the retrun ##
+###############################################
 training_set = data_1.iloc[:,2:3].values
 sc = MinMaxScaler(feature_range = (0, 1))
 training_set_scaled = sc.fit_transform(training_set)
@@ -58,7 +62,7 @@ regressor.fit(X, y, epochs = 100, batch_size = 32)
 
 real_stock_price = data_2.iloc[:, 2:3].values
 
-dataset_total = data['adj_close']
+dataset_total = data['return']
 inputs = dataset_total[len(dataset_total) - len(data_2) -30:].values
 inputs = inputs.reshape(-1,1)
 inputs = sc.fit_transform(inputs)
