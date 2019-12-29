@@ -54,7 +54,27 @@ for v in dfls:
 
 # COMMAND ----------
 
-nl
+from pyspark.sql.types import *
+field = [StructField("field1", StringType(), True)]
+schema = StructType(field)
+
+ndf = sqlContext.createDataFrame(sc.emptyRDD(), schema)
+
+ls = dbutils.fs.ls("abfss://" + fileSystemName + "@" + adlsGen2AccountName + ".dfs.core.windows.net/MMAI_Finance/")
+dfls = pd.DataFrame(ls).path
+
+for v in dfls:
+  nl = dbutils.fs.ls(v)
+for v2 in pd.DataFrame(nl).path:
+  s = v2.split('/')
+  stock = s[-2]
+  if(s[-1].startswith('_')):
+    pass
+  else:
+    ndf = readData(stock, s[-1])
+
+display(ndf)
+
 
 # COMMAND ----------
 
