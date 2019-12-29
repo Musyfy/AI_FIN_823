@@ -275,10 +275,12 @@ def BuildLSTMNet():
 
   w = tf.get_variable('w',shape=[num_nodes[-1], 1], initializer=tf.contrib.layers.xavier_initializer())
   b = tf.get_variable('b',initializer=tf.random_uniform([1],-0.1,0.1))
+  
+  return train_inputs, train_outputs, drop_multi_cell, multi_cell, w, b
 
 # COMMAND ----------
 
-def BuildLSTMGateCells():
+def BuildLSTMGateCells(train_inputs, train_outputs, drop_multi_cell, multi_cell, w, b):
   # Create cell state and hidden state variables to maintain the state of the LSTM
   c, h = [],[]
   initial_state = []
@@ -301,10 +303,12 @@ def BuildLSTMGateCells():
   all_outputs = tf.nn.xw_plus_b(all_lstm_outputs,w,b)
 
   split_outputs = tf.split(all_outputs,num_unrollings,axis=0)
+  
+  return c, h, state, all_lstm_outputs, all_outputs, split_outputs
 
 # COMMAND ----------
 
-def LossAndOptimization():
+def LossAndOptimization(c, h, state, all_lstm_outputs, all_outputs, split_outputs):
   # When calculating the loss you need to be careful about the exact form, because you calculate
   # loss of all the unrolled steps at the same time
   # Therefore, take the mean error or each batch and get the sum of that over all the unrolled steps
@@ -332,6 +336,8 @@ def LossAndOptimization():
       zip(gradients, v))
 
   print('\tAll done')
+  
+  return tf_learning_rate, optimizer, tf_min_learning_rate, learning_rate, loss
 
 # COMMAND ----------
 
@@ -359,10 +365,12 @@ def SamplePrediction():
     sample_prediction = tf.nn.xw_plus_b(tf.reshape(sample_outputs,[1,-1]), w, b)
 
   print('\tAll done')
+  
+  return sample_inputs, sample_outputs, sample_prediction, reset_sample_states
 
 # COMMAND ----------
 
-def Model():
+def Model(tf_learning_rate, optimizer, tf_min_learning_rate, learning_rate, loss, all_mid_data, sample_inputs, sample_prediction, reset_sample_states):
   epochs = 10
   valid_summary = 1 # Interval you make test predictions
 
@@ -503,19 +511,23 @@ def Pipeline():
   MovingAverage(train_data)
   #store the MSE for the moving average 
   print("2")
-  ExponentialMovingAverage(train_data)
+  all_mid_data = ExponentialMovingAverage(train_data)
   #store the MSE for the exponential moving average 
   print("3")
-  BuildLSTMNet()
+  train_inputs, train_outputs, drop_multi_cell, multi_cell, w, b = BuildLSTMNet()
   print("4")
-  BuildLSTMGateCells()
+  c, h, state, all_lstm_outputs, all_outputs, split_outputs = BuildLSTMGateCells(train_inputs, train_outputs, drop_multi_cell, multi_cell, w, b)
   print("5")
-  LossAndOptimization()
+  tf_learning_rate, optimizer, tf_min_learning_rate, learning_rate, loss = LossAndOptimization(c, h, state, all_lstm_outputs, all_outputs, split_outputs)
   print("6")
-  SamplePrediction()
+  sample_inputs, sample_outputs, sample_prediction,reset_sample_states = SamplePrediction()
   print("7")
-  Model()
+  Model(tf_learning_rate, optimizer, tf_min_learning_rate, learning_rate, loss, all_mid_data, sample_inputs, sample_prediction, reset_sample_states)
   print("8")
+
+# COMMAND ----------
+
+train_data, test_data = Train_Test_WindowScaler(df)
 
 # COMMAND ----------
 
@@ -523,15 +535,27 @@ date = MovingAverage(train_data)
 
 # COMMAND ----------
 
-ExponentialMovingAverage(train_data, date)
+all_mid_data = ExponentialMovingAverage(train_data, date)
 
 # COMMAND ----------
 
-BuildLSTMNet()
+train_inputs, train_outputs, drop_multi_cell, multi_cell, w, b = BuildLSTMNet()
 
 # COMMAND ----------
 
-BuildLSTMGateCells()
+c, h, state, all_lstm_outputs, all_outputs, split_outputs = BuildLSTMGateCells(train_inputs, train_outputs, drop_multi_cell, multi_cell, w, b)
+
+# COMMAND ----------
+
+tf_learning_rate, optimizer, tf_min_learning_rate, learning_rate, loss = LossAndOptimization(c, h, state, all_lstm_outputs, all_outputs, split_outputs)
+
+# COMMAND ----------
+
+sample_inputs, sample_outputs, sample_prediction, reset_sample_states = SamplePrediction()
+
+# COMMAND ----------
+
+Model(tf_learning_rate, optimizer, tf_min_learning_rate, learning_rate, loss, all_mid_data, sample_inputs, sample_prediction, reset_sample_states)
 
 # COMMAND ----------
 
