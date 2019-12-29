@@ -51,7 +51,7 @@ from keras.layers import Dense
 from keras.layers import LSTM
 from keras.layers import Dropout
 
-hidden_layer_sizes = [100]*55
+hidden_layer_sizes = [100]*50
 def build_model(hidden_layer_sizes,act,input_d):
   model = Sequential()
 
@@ -73,7 +73,7 @@ def build_model(hidden_layer_sizes,act,input_d):
 
 regressor = build_model(hidden_layer_sizes,"relu",(X.shape[1],1))
 
-regressor.fit(X, y, epochs = 100, batch_size = 520)
+regressor.fit(X, y, epochs = 200, batch_size = 520)
 
 real_stock_price = data_2.iloc[:, 3:4].values
 

@@ -10,6 +10,7 @@ from tensorflow.python.client import device_lib
 from keras import backend as K
 from keras import metrics
 import keras as ks
+import pickle
 
 device_lib.list_local_devices()
 K.tensorflow_backend._get_available_gpus()
@@ -21,12 +22,7 @@ data = data.dropna()
 factor_ratio = 0.9
 data_1 = data.iloc[:round(len(data)*factor_ratio)]
 data_2 = data[round(len(data)*factor_ratio):]###365
-plt.figure(figsize = (20,14))
-plt.plot(range(data.shape[0]),(data['adj_close']))
-plt.xticks(range(0,data.shape[0],1000),data['date'].loc[::1000],rotation=45)
-plt.xlabel('Date',fontsize=18)
-plt.ylabel('Closed Price',fontsize=18)
-plt.show()
+
 ###############################################
 ##  Feature engineering construct the retrun ##
 ###############################################
@@ -63,6 +59,7 @@ def build_model(hidden_layer_sizes,act,input_d):
   model.add(LSTM(units=hidden_layer_sizes[len(hidden_layer_sizes)-1], activation=act))
   model.add(Dropout(0.2))
 
+  model.add(Dense(units=25))
   model.add(Dense(units=1,activation=act))
 
   model.compile(optimizer='adam', loss='mean_squared_error')
@@ -77,7 +74,7 @@ regressor = build_model(hidden_layer_sizes,"relu",(X.shape[1],5))
 #callbacks = [EarlyStopping(monitor='val_loss', patience=2),
              #ModelCheckpoint(filepath='best_model.h5', monitor='val_loss', save_best_only=True)]
 
-model = regressor.fit(X, y, epochs = 300, batch_size = 100)
+model = regressor.fit(X, y, epochs = 200, batch_size = 100)
 plt.plot(model.history['loss'])
 plt.show()
 
@@ -100,6 +97,13 @@ predicted_stock_price= regressor.predict(X_test)
 sc.fit_transform(real_stock_price)
 predicted_stock_price = sc.inverse_transform(predicted_stock_price)
 predicted_stock_price = pd.DataFrame(predicted_stock_price,columns=['adj_close'])
+predicted_stock_price.reset_index(inplace=True)
+predicted_stock_price = predicted_stock_price[['adj_close']]
+data_test = data[round(len(data)*factor_ratio):]
+data_test.reset_index(inplace=True)
+data_test = data_test[["date"]]
+
+final = pd.merge(data_test, predicted_stock_price, left_index=True, right_index=True)
 #predicted_stock_price['return1'] = predicted_stock_price['close'].shift(1) / predicted_stock_price['close'] - 1
 
 #predicted_stock_price['cum'] = (1 + predicted_stock_price.return1).cumprod() - 1
@@ -123,3 +127,11 @@ plt.show()
 #plt.xlabel('epoch')
 #plt.legend(['train', 'test'], loc='upper left')
 #plt.show()
+
+import pickle
+with open('Apple_model.pickle','wb') as f:
+    pickle.dump(regressor,f)
+
+with open('Apple_model.pickle','rb') as f:
+    model = pickle.load(f)
+
