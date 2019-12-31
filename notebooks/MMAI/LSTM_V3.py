@@ -10,6 +10,9 @@ import numpy as np
 from pyspark.sql.types import *
 import tensorflow as tf # This code has been tested with TensorFlow 1.6
 from sklearn.preprocessing import MinMaxScaler
+import datetime
+import warnings
+warnings.filterwarnings("ignore")
 
 # COMMAND ----------
 
@@ -29,21 +32,26 @@ def readData(stockName, filename):
   dbutils.fs.ls("abfss://" + fileSystemName + "@" + adlsGen2AccountName + ".dfs.core.windows.net/MMAI_Finance/")
   return spark.read.option("header", "true").csv("abfss://" + fileSystemName + "@" + adlsGen2AccountName + ".dfs.core.windows.net/MMAI_Finance/" + stockName +"/"+ filename)
 
+def WriteToDataLake(prediction, stockName):
+  columns = ["Date", "Prediction Close"]
+  df = spark.createDataFrame([(datetime.datetime.today(), prediction)], columns)
+  df.repartition(1).write.mode("append").format('csv').options(header='true', delimiter=',', inferSchema='true').save("abfss://" + fileSystemName + "@" + adlsGen2AccountName + ".dfs.core.windows.net/MMAI_Finance/" + stockName +"/")
+
 
 # COMMAND ----------
 
-#file to test
-df = readData("AMZN", "part-00000-tid-5003776592327412020-a424f54e-b561-4c97-9974-108bc8072bc6-3076-1-c000.csv")
+# #file to test
+# df = readData("AMZN", "part-00000-tid-5003776592327412020-a424f54e-b561-4c97-9974-108bc8072bc6-3076-1-c000.csv")
 
-# display(df)
-df = df.toPandas()
+# # display(df)
+# df = df.toPandas()
 
-df["Open"] = pd.to_numeric(df["Open"])
-df["High"] = pd.to_numeric(df["High"])
-df["Low"] = pd.to_numeric(df["Low"])
-df["Close"] = pd.to_numeric(df["Close"])
+# df["Open"] = pd.to_numeric(df["Open"])
+# df["High"] = pd.to_numeric(df["High"])
+# df["Low"] = pd.to_numeric(df["Low"])
+# df["Close"] = pd.to_numeric(df["Close"])
 
-df = df.sort_values('Date')
+# df = df.sort_values('Date')
 
 # COMMAND ----------
 
@@ -58,87 +66,85 @@ def ListStocksFolders():
 
 # COMMAND ----------
 
-nl = ListStocksFolders()
-for a in nl:
-  for b in a:
-    path = b.path
-    s = path.split('/')
-    stock = s[-2]
-    print(stock)
+# nl = ListStocksFolders()
+# for a in nl:
+#   for b in a:
+#     path = b.path
+#     s = path.split('/')
+#     stock = s[-2]
+#     print(stock)
 
 # COMMAND ----------
 
-
 def GetFiles(nl):
-#   field = [StructField("stock", StringType(), True)]
-#   field2= [StructField("path", StringType(), True)]
-#   schema = StructType(field, field2)
-  schema = StructType([
-    StructField("stock", StringType(), True),
-    StructField("path", StringType(), True)])
-  
-  ndf = spark.createDataFrame(sc.emptyRDD(), schema)
-  newRow = spark.createDataFrame(sc.emptyRDD(), schema)
+  columns =['stock', 'path']
+  ndf = spark.createDataFrame([('NaN', 'NaN')], columns)
   
   for v in nl:
     for v2 in v:
+#       newRow = spark.createDataFrame(sc.emptyRDD(), columns)
       path = v2.path
       s = path.split('/')
       if(s[-1].startswith('_')):
         pass
       else:
-        newRow = spark.createDataFrame([[s[-2], s[-1]]])
-        ndf.union(newRow)
+        newRow = spark.createDataFrame([(s[-2], s[-1])], columns)
+        ndf = ndf.union(newRow)
         
   return ndf
 
 # COMMAND ----------
 
-nl = ListStocksFolders()
-ndf = GetFiles(nl)
+# nl = ListStocksFolders()
+# ndf = GetFiles(nl)
 
 
 # COMMAND ----------
 
-
-
-# COMMAND ----------
-
-s = GetFiles(ListStocksFolders())
-
+# display(ndf)
 
 # COMMAND ----------
 
-display(s)
+# # ndf = ndf.dropna()
+# # display(ndf)
+# for row in ndf.collect():
+#   if row.path == "NaN":
+#     pass
+#   else:
+#     df = readData(row.stock, row.path)
 
 # COMMAND ----------
 
-from pyspark.sql.types import *
-field = [StructField("field1", StringType(), True)]
-schema = StructType(field)
+# display(df)
 
-ndf = sqlContext.createDataFrame(sc.emptyRDD(), schema)
+# COMMAND ----------
 
+# from pyspark.sql.types import *
+# field = [StructField("field1", StringType(), True)]
+# schema = StructType(field)
 
-for v2 in pd.DataFrame(nl).path:
-  s = v2.split('/')
-  stock = s[-2]
-  if(s[-1].startswith('_')):
-    pass
-  else:
-    ndf = readData(stock, s[-1])
+# ndf = sqlContext.createDataFrame(sc.emptyRDD(), schema)
+# nl
 
-display(ndf)
+# for v2 in pd.DataFrame(nl).path:
+#   s = v2.split('/')
+#   stock = s[-2]
+#   if(s[-1].startswith('_')):
+#     pass
+#   else:
+#     ndf = readData(stock, s[-1])
 
-df = df.toPandas()
+# display(ndf)
 
-df["Open"] = pd.to_numeric(df["Open"])
-df["High"] = pd.to_numeric(df["High"])
-df["Low"] = pd.to_numeric(df["Low"])
-df["Close"] = pd.to_numeric(df["Close"])
+# df = df.toPandas()
 
-df = df.sort_values('Date')
+# df["Open"] = pd.to_numeric(df["Open"])
+# df["High"] = pd.to_numeric(df["High"])
+# df["Low"] = pd.to_numeric(df["Low"])
+# df["Close"] = pd.to_numeric(df["Close"])
 
+# df = df.sort_values('Date')
+# df.shape()
 
 # COMMAND ----------
 
@@ -212,7 +218,7 @@ def Train_Test_WindowScaler(df):
 
 # def GenerateDate():
 
-def MovingAverage(train_data):
+def MovingAverage(train_data, df):
   window_size = 100
   N = train_data.size
   std_avg_predictions = []
@@ -235,7 +241,7 @@ def MovingAverage(train_data):
 
 # COMMAND ----------
 
-def ExponentialMovingAverage(train_data, date):
+def ExponentialMovingAverage(train_data, date, test_data):
   # Now perform exponential moving average smoothing
   # So the data will have a smoother curve than the original ragged data
   EMA = 0.0
@@ -392,7 +398,7 @@ def BuildLSTMGateCells(train_inputs, train_outputs, drop_multi_cell, multi_cell,
 
 # COMMAND ----------
 
-def LossAndOptimization(c, h, state, all_lstm_outputs, all_outputs, split_outputs):
+def LossAndOptimization(c, h, state, all_lstm_outputs, all_outputs, split_outputs, train_outputs):
   # When calculating the loss you need to be careful about the exact form, because you calculate
   # loss of all the unrolled steps at the same time
   # Therefore, take the mean error or each batch and get the sum of that over all the unrolled steps
@@ -425,7 +431,7 @@ def LossAndOptimization(c, h, state, all_lstm_outputs, all_outputs, split_output
 
 # COMMAND ----------
 
-def SamplePrediction():
+def SamplePrediction(multi_cell, w, b):
   print('Defining prediction related TF functions')
   sample_inputs = tf.placeholder(tf.float32, shape=[1,D])
 
@@ -454,11 +460,11 @@ def SamplePrediction():
 
 # COMMAND ----------
 
-def Model(tf_learning_rate, optimizer, tf_min_learning_rate, learning_rate, loss, all_mid_data, sample_inputs, sample_prediction, reset_sample_states):
+def Model(tf_learning_rate, optimizer, tf_min_learning_rate, learning_rate, loss, all_mid_data, sample_inputs, sample_prediction, reset_sample_states, train_data, train_inputs, train_outputs):
   epochs = 10
   valid_summary = 1 # Interval you make test predictions
 
-  n_predict_once = 50 # Number of steps you continously predict for
+  n_predict_once = 1 # Number of steps you continously predict for
 
   train_seq_length = train_data.size # Full length of the training data
 
@@ -483,7 +489,7 @@ def Model(tf_learning_rate, optimizer, tf_min_learning_rate, learning_rate, loss
   x_axis_seq = []
 
   # Points you start our test predictions from
-  test_points_seq = np.arange(1000,1470,1).tolist() 
+  test_points_seq = np.arange(0,5128,5).tolist() 
 
   for ep in range(epochs):       
 
@@ -586,64 +592,83 @@ def Model(tf_learning_rate, optimizer, tf_min_learning_rate, learning_rate, loss
         predictions_over_time.append(predictions_seq)
         print('\tFinished Predictions')
   
+  return our_predictions
+  
 
 # COMMAND ----------
 
 def Pipeline():
   nliststocks = ListStocksFolders()
   print("list of stocks")
-  GetFiles(nliststocks)
-  
-  train_data, test_data = Train_Test_WindowScaler(df)
-  print("1")
-  MovingAverage(train_data)
-  #store the MSE for the moving average 
-  print("2")
-  all_mid_data = ExponentialMovingAverage(train_data)
-  #store the MSE for the exponential moving average 
-  print("3")
-  train_inputs, train_outputs, drop_multi_cell, multi_cell, w, b = BuildLSTMNet()
-  print("4")
-  c, h, state, all_lstm_outputs, all_outputs, split_outputs = BuildLSTMGateCells(train_inputs, train_outputs, drop_multi_cell, multi_cell, w, b)
-  print("5")
-  tf_learning_rate, optimizer, tf_min_learning_rate, learning_rate, loss = LossAndOptimization(c, h, state, all_lstm_outputs, all_outputs, split_outputs)
-  print("6")
-  sample_inputs, sample_outputs, sample_prediction,reset_sample_states = SamplePrediction()
-  print("7")
-  Model(tf_learning_rate, optimizer, tf_min_learning_rate, learning_rate, loss, all_mid_data, sample_inputs, sample_prediction, reset_sample_states)
-  print("8")
+  filedf = GetFiles(nliststocks)
+  print("got the list of the stocks and paths")
+  for row in filedf.collect():
+    if row.path == "NaN":
+      pass
+    else:
+      df = readData(row.stock, row.path)
+      pdf = df.select("*").toPandas() 
+      print("Working with the data for the " + row.stock)
+      train_data, test_data = Train_Test_WindowScaler(pdf)
+      print("1")
+      date = MovingAverage(train_data, pdf)
+      #store the MSE for the moving average 
+      print("2")
+      all_mid_data = ExponentialMovingAverage(train_data, date, test_data)
+      #store the MSE for the exponential moving average 
+      print("3")
+      train_inputs, train_outputs, drop_multi_cell, multi_cell, w, b = BuildLSTMNet()
+      print("4")
+      c, h, state, all_lstm_outputs, all_outputs, split_outputs = BuildLSTMGateCells(train_inputs, train_outputs, drop_multi_cell, multi_cell, w, b)
+      print("5")
+      tf_learning_rate, optimizer, tf_min_learning_rate, learning_rate, loss = LossAndOptimization(c, h, state, all_lstm_outputs, all_outputs, split_outputs, train_outputs)
+      print("6")
+      sample_inputs, sample_outputs, sample_prediction, reset_sample_states = SamplePrediction(multi_cell, w, b)
+      print("7")
+      prediction = Model(tf_learning_rate, optimizer, tf_min_learning_rate, learning_rate, loss, all_mid_data, sample_inputs, sample_prediction, reset_sample_states, train_data, train_inputs, train_outputs)
+      print("8")
+      WriteToDataLake(prediction, row.stock)
+      print("prediction writte in the data lake")
 
 # COMMAND ----------
 
-train_data, test_data = Train_Test_WindowScaler(df)
+Pipeline()
 
 # COMMAND ----------
 
-date = MovingAverage(train_data)
+# train_data, test_data = Train_Test_WindowScaler(df)
 
 # COMMAND ----------
 
-all_mid_data = ExponentialMovingAverage(train_data, date)
+# date = MovingAverage(train_data)
 
 # COMMAND ----------
 
-train_inputs, train_outputs, drop_multi_cell, multi_cell, w, b = BuildLSTMNet()
+# all_mid_data = ExponentialMovingAverage(train_data, date)
 
 # COMMAND ----------
 
-c, h, state, all_lstm_outputs, all_outputs, split_outputs = BuildLSTMGateCells(train_inputs, train_outputs, drop_multi_cell, multi_cell, w, b)
+# train_inputs, train_outputs, drop_multi_cell, multi_cell, w, b = BuildLSTMNet()
 
 # COMMAND ----------
 
-tf_learning_rate, optimizer, tf_min_learning_rate, learning_rate, loss = LossAndOptimization(c, h, state, all_lstm_outputs, all_outputs, split_outputs)
+# c, h, state, all_lstm_outputs, all_outputs, split_outputs = BuildLSTMGateCells(train_inputs, train_outputs, drop_multi_cell, multi_cell, w, b)
 
 # COMMAND ----------
 
-sample_inputs, sample_outputs, sample_prediction, reset_sample_states = SamplePrediction()
+# tf_learning_rate, optimizer, tf_min_learning_rate, learning_rate, loss = LossAndOptimization(c, h, state, all_lstm_outputs, all_outputs, split_outputs)
 
 # COMMAND ----------
 
-Model(tf_learning_rate, optimizer, tf_min_learning_rate, learning_rate, loss, all_mid_data, sample_inputs, sample_prediction, reset_sample_states)
+# sample_inputs, sample_outputs, sample_prediction, reset_sample_states = SamplePrediction()
+
+# COMMAND ----------
+
+
+
+# COMMAND ----------
+
+# Model(tf_learning_rate, optimizer, tf_min_learning_rate, learning_rate, loss, all_mid_data, test_data, sample_prediction, reset_sample_states)
 
 # COMMAND ----------
 
