@@ -32,26 +32,12 @@ def readData(stockName, filename):
   dbutils.fs.ls("abfss://" + fileSystemName + "@" + adlsGen2AccountName + ".dfs.core.windows.net/MMAI_Finance/")
   return spark.read.option("header", "true").csv("abfss://" + fileSystemName + "@" + adlsGen2AccountName + ".dfs.core.windows.net/MMAI_Finance/" + stockName +"/"+ filename)
 
-def WriteToDataLake(prediction, stockName):
+def WriteToDataLake(predictions, stockName):
   columns = ["Date", "Prediction Close"]
-  df = spark.createDataFrame([(datetime.datetime.today(), prediction)], columns)
-  df.repartition(1).write.mode("append").format('csv').options(header='true', delimiter=',', inferSchema='true').save("abfss://" + fileSystemName + "@" + adlsGen2AccountName + ".dfs.core.windows.net/MMAI_Finance/" + stockName +"/")
+  for pred in predictions:
+    df = spark.createDataFrame([(datetime.datetime.today(), pred)], columns)
+    df.repartition(1).write.mode("append").format('csv').options(header='true', delimiter=',', inferSchema='true').save("abfss://" + fileSystemName + "@" + adlsGen2AccountName + ".dfs.core.windows.net/MMAI_Finance/" + stockName +"/"+str(datetime.datetime.today())+"_Prediction/")
 
-
-# COMMAND ----------
-
-# #file to test
-# df = readData("AMZN", "part-00000-tid-5003776592327412020-a424f54e-b561-4c97-9974-108bc8072bc6-3076-1-c000.csv")
-
-# # display(df)
-# df = df.toPandas()
-
-# df["Open"] = pd.to_numeric(df["Open"])
-# df["High"] = pd.to_numeric(df["High"])
-# df["Low"] = pd.to_numeric(df["Low"])
-# df["Close"] = pd.to_numeric(df["Close"])
-
-# df = df.sort_values('Date')
 
 # COMMAND ----------
 
@@ -63,16 +49,6 @@ def ListStocksFolders():
     nl.append(dbutils.fs.ls(v))
     
   return nl
-
-# COMMAND ----------
-
-# nl = ListStocksFolders()
-# for a in nl:
-#   for b in a:
-#     path = b.path
-#     s = path.split('/')
-#     stock = s[-2]
-#     print(stock)
 
 # COMMAND ----------
 
@@ -92,95 +68,6 @@ def GetFiles(nl):
         ndf = ndf.union(newRow)
         
   return ndf
-
-# COMMAND ----------
-
-# nl = ListStocksFolders()
-# ndf = GetFiles(nl)
-
-
-# COMMAND ----------
-
-# display(ndf)
-
-# COMMAND ----------
-
-# # ndf = ndf.dropna()
-# # display(ndf)
-# for row in ndf.collect():
-#   if row.path == "NaN":
-#     pass
-#   else:
-#     df = readData(row.stock, row.path)
-
-# COMMAND ----------
-
-# display(df)
-
-# COMMAND ----------
-
-# from pyspark.sql.types import *
-# field = [StructField("field1", StringType(), True)]
-# schema = StructType(field)
-
-# ndf = sqlContext.createDataFrame(sc.emptyRDD(), schema)
-# nl
-
-# for v2 in pd.DataFrame(nl).path:
-#   s = v2.split('/')
-#   stock = s[-2]
-#   if(s[-1].startswith('_')):
-#     pass
-#   else:
-#     ndf = readData(stock, s[-1])
-
-# display(ndf)
-
-# df = df.toPandas()
-
-# df["Open"] = pd.to_numeric(df["Open"])
-# df["High"] = pd.to_numeric(df["High"])
-# df["Low"] = pd.to_numeric(df["Low"])
-# df["Close"] = pd.to_numeric(df["Close"])
-
-# df = df.sort_values('Date')
-# df.shape()
-
-# COMMAND ----------
-
-# # First calculate the mid prices from the highest and lowest 
-# # high_prices = df.loc[:,'High'].as_matrix()
-# # low_prices = df.loc[:,'Low'].as_matrix()
-# mid_prices = df.loc[:,'Close'].values
-
-# #dividing the data to training and testing
-# s = len(mid_prices)/5 
-# train_data = mid_prices[:int(s*4)]
-# test_data = mid_prices[int(s*4):]
-
-# scaler = MinMaxScaler()
-# train_data = train_data.reshape(-1,1)
-# test_data = test_data.reshape(-1,1)
-
-# COMMAND ----------
-
-# # Train the Scaler with training data and smooth data 
-# smoothing_window_size = 25
-# for di in range(0,100,smoothing_window_size):
-#     scaler.fit(train_data[di:di+smoothing_window_size,:])
-#     train_data[di:di+smoothing_window_size,:] = scaler.transform(train_data[di:di+smoothing_window_size,:])
-
-# # You normalize the last bit of remaining data 
-# scaler.fit(train_data[di+smoothing_window_size:,:])
-# train_data[di+smoothing_window_size:,:] = scaler.transform(train_data[di+smoothing_window_size:,:])
-
-# COMMAND ----------
-
-# # Reshape both train and test data
-# train_data = train_data.reshape(-1)
-
-# # Normalize test data
-# test_data = scaler.transform(test_data).reshape(-1)
 
 # COMMAND ----------
 
@@ -427,7 +314,7 @@ def LossAndOptimization(c, h, state, all_lstm_outputs, all_outputs, split_output
 
   print('\tAll done')
   
-  return tf_learning_rate, optimizer, tf_min_learning_rate, learning_rate, loss
+  return tf_learning_rate, optimizer, tf_min_learning_rate, learning_rate, loss, inc_gstep
 
 # COMMAND ----------
 
@@ -460,8 +347,8 @@ def SamplePrediction(multi_cell, w, b):
 
 # COMMAND ----------
 
-def Model(tf_learning_rate, optimizer, tf_min_learning_rate, learning_rate, loss, all_mid_data, sample_inputs, sample_prediction, reset_sample_states, train_data, train_inputs, train_outputs):
-  epochs = 10
+def Model(tf_learning_rate, optimizer, tf_min_learning_rate, learning_rate, loss, all_mid_data, sample_inputs, sample_prediction, reset_sample_states, train_data, train_inputs, train_outputs, inc_gstep):
+  epochs = 100
   valid_summary = 1 # Interval you make test predictions
 
   n_predict_once = 1 # Number of steps you continously predict for
@@ -489,7 +376,7 @@ def Model(tf_learning_rate, optimizer, tf_min_learning_rate, learning_rate, loss
   x_axis_seq = []
 
   # Points you start our test predictions from
-  test_points_seq = np.arange(0,5128,5).tolist() 
+  test_points_seq = np.arange(0,len(all_mid_data),1).tolist() 
 
   for ep in range(epochs):       
 
@@ -613,62 +500,29 @@ def Pipeline():
       print("1")
       date = MovingAverage(train_data, pdf)
       #store the MSE for the moving average 
-      print("2")
+#       print("2")
       all_mid_data = ExponentialMovingAverage(train_data, date, test_data)
       #store the MSE for the exponential moving average 
-      print("3")
+#       print("3")
       train_inputs, train_outputs, drop_multi_cell, multi_cell, w, b = BuildLSTMNet()
-      print("4")
+      print("Deep Learning tensor flow cells and layers have been created")
       c, h, state, all_lstm_outputs, all_outputs, split_outputs = BuildLSTMGateCells(train_inputs, train_outputs, drop_multi_cell, multi_cell, w, b)
-      print("5")
-      tf_learning_rate, optimizer, tf_min_learning_rate, learning_rate, loss = LossAndOptimization(c, h, state, all_lstm_outputs, all_outputs, split_outputs, train_outputs)
-      print("6")
+      print("LSTM Gate cells have been Initialized and created")
+      tf_learning_rate, optimizer, tf_min_learning_rate, learning_rate, loss, inc_gstep = LossAndOptimization(c, h, state, all_lstm_outputs, all_outputs, split_outputs, train_outputs)
+      print("Learning rate, loss function and optimization function have been initialized")
       sample_inputs, sample_outputs, sample_prediction, reset_sample_states = SamplePrediction(multi_cell, w, b)
-      print("7")
-      prediction = Model(tf_learning_rate, optimizer, tf_min_learning_rate, learning_rate, loss, all_mid_data, sample_inputs, sample_prediction, reset_sample_states, train_data, train_inputs, train_outputs)
-      print("8")
+      print("Sample Data prediction function has been made")
+      prediction = Model(tf_learning_rate, optimizer, tf_min_learning_rate, learning_rate, loss, all_mid_data, sample_inputs, sample_prediction, reset_sample_states, train_data, train_inputs, train_outputs, inc_gstep)
+      print("Model training and prediction has finished successfully")
       WriteToDataLake(prediction, row.stock)
       print("prediction writte in the data lake")
+      print("resetting the tensor flow")
+      tf.reset_default_graph()
+      sess = tf.Session()  
+      sess.run(tf.global_variables_initializer())
+      print("Variables have been re-initialized.")
+      print("A new TensorFlow session has been created")
 
 # COMMAND ----------
 
 Pipeline()
-
-# COMMAND ----------
-
-# train_data, test_data = Train_Test_WindowScaler(df)
-
-# COMMAND ----------
-
-# date = MovingAverage(train_data)
-
-# COMMAND ----------
-
-# all_mid_data = ExponentialMovingAverage(train_data, date)
-
-# COMMAND ----------
-
-# train_inputs, train_outputs, drop_multi_cell, multi_cell, w, b = BuildLSTMNet()
-
-# COMMAND ----------
-
-# c, h, state, all_lstm_outputs, all_outputs, split_outputs = BuildLSTMGateCells(train_inputs, train_outputs, drop_multi_cell, multi_cell, w, b)
-
-# COMMAND ----------
-
-# tf_learning_rate, optimizer, tf_min_learning_rate, learning_rate, loss = LossAndOptimization(c, h, state, all_lstm_outputs, all_outputs, split_outputs)
-
-# COMMAND ----------
-
-# sample_inputs, sample_outputs, sample_prediction, reset_sample_states = SamplePrediction()
-
-# COMMAND ----------
-
-
-
-# COMMAND ----------
-
-# Model(tf_learning_rate, optimizer, tf_min_learning_rate, learning_rate, loss, all_mid_data, test_data, sample_prediction, reset_sample_states)
-
-# COMMAND ----------
-
