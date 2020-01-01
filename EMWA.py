@@ -13,9 +13,6 @@ data.set_index(pd.DatetimeIndex(data['date']),inplace=True)
 data = data[['adj_close']]
 plt.plot(data)
 
-
-
-
 def test_stationarity(timeseries):
     # Determing rolling statistics
     rolmean = timeseries.rolling(2).mean()
