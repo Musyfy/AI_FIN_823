@@ -493,35 +493,38 @@ def Pipeline():
     if row.path == "NaN":
       pass
     else:
-      df = readData(row.stock, row.path)
-      pdf = df.select("*").toPandas() 
-      print("Working with the data for the " + row.stock)
-      train_data, test_data = Train_Test_WindowScaler(pdf)
-      print("1")
-      date = MovingAverage(train_data, pdf)
-      #store the MSE for the moving average 
-#       print("2")
-      all_mid_data = ExponentialMovingAverage(train_data, date, test_data)
-      #store the MSE for the exponential moving average 
-#       print("3")
-      train_inputs, train_outputs, drop_multi_cell, multi_cell, w, b = BuildLSTMNet()
-      print("Deep Learning tensor flow cells and layers have been created")
-      c, h, state, all_lstm_outputs, all_outputs, split_outputs = BuildLSTMGateCells(train_inputs, train_outputs, drop_multi_cell, multi_cell, w, b)
-      print("LSTM Gate cells have been Initialized and created")
-      tf_learning_rate, optimizer, tf_min_learning_rate, learning_rate, loss, inc_gstep = LossAndOptimization(c, h, state, all_lstm_outputs, all_outputs, split_outputs, train_outputs)
-      print("Learning rate, loss function and optimization function have been initialized")
-      sample_inputs, sample_outputs, sample_prediction, reset_sample_states = SamplePrediction(multi_cell, w, b)
-      print("Sample Data prediction function has been made")
-      prediction = Model(tf_learning_rate, optimizer, tf_min_learning_rate, learning_rate, loss, all_mid_data, sample_inputs, sample_prediction, reset_sample_states, train_data, train_inputs, train_outputs, inc_gstep)
-      print("Model training and prediction has finished successfully")
-      WriteToDataLake(prediction, row.stock)
-      print("prediction writte in the data lake")
-      print("resetting the tensor flow")
-      tf.reset_default_graph()
-      sess = tf.Session()  
-      sess.run(tf.global_variables_initializer())
-      print("Variables have been re-initialized.")
-      print("A new TensorFlow session has been created")
+      try:
+        df = readData(row.stock, row.path)
+        pdf = df.select("*").toPandas() 
+        print("Working with the data for the " + row.stock)
+        train_data, test_data = Train_Test_WindowScaler(pdf)
+        print("1")
+        date = MovingAverage(train_data, pdf)
+        #store the MSE for the moving average 
+  #       print("2")
+        all_mid_data = ExponentialMovingAverage(train_data, date, test_data)
+        #store the MSE for the exponential moving average 
+  #       print("3")
+        train_inputs, train_outputs, drop_multi_cell, multi_cell, w, b = BuildLSTMNet()
+        print("Deep Learning tensor flow cells and layers have been created")
+        c, h, state, all_lstm_outputs, all_outputs, split_outputs = BuildLSTMGateCells(train_inputs, train_outputs, drop_multi_cell, multi_cell, w, b)
+        print("LSTM Gate cells have been Initialized and created")
+        tf_learning_rate, optimizer, tf_min_learning_rate, learning_rate, loss, inc_gstep = LossAndOptimization(c, h, state, all_lstm_outputs, all_outputs, split_outputs, train_outputs)
+        print("Learning rate, loss function and optimization function have been initialized")
+        sample_inputs, sample_outputs, sample_prediction, reset_sample_states = SamplePrediction(multi_cell, w, b)
+        print("Sample Data prediction function has been made")
+        prediction = Model(tf_learning_rate, optimizer, tf_min_learning_rate, learning_rate, loss, all_mid_data, sample_inputs, sample_prediction, reset_sample_states, train_data, train_inputs, train_outputs, inc_gstep)
+        print("Model training and prediction has finished successfully")
+        WriteToDataLake(prediction, row.stock)
+        print("prediction writte in the data lake")
+        print("resetting the tensor flow")
+        tf.reset_default_graph()
+        sess = tf.Session()  
+        sess.run(tf.global_variables_initializer())
+        print("Variables have been re-initialized.")
+        print("A new TensorFlow session has been created")
+      except:
+        pass
 
 # COMMAND ----------
 
