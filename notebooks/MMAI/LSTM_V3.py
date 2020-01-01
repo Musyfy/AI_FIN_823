@@ -348,7 +348,7 @@ def SamplePrediction(multi_cell, w, b):
 # COMMAND ----------
 
 def Model(tf_learning_rate, optimizer, tf_min_learning_rate, learning_rate, loss, all_mid_data, sample_inputs, sample_prediction, reset_sample_states, train_data, train_inputs, train_outputs, inc_gstep):
-  epochs = 100
+  epochs = 10
   valid_summary = 1 # Interval you make test predictions
 
   n_predict_once = 1 # Number of steps you continously predict for
