@@ -1,0 +1,35 @@
+What stock do we pick for our portfolio?
+S&P.Less volatility stock, which sector we pick?
+Sarb: manufacture 17
+Landis financial institution 17
+Haddy: technology 16
+50 stocks
+
+train these 50 models:
+Do hyperparameter tunning on each stock
+do it in the team; each team member pick 8,9 stocks 
+we aligned on the training data, testing data, and period.
+training period: 2017-06-29 to 2019-06-29
+testing period:6 months 2019-06-30 to 2019-12-31
+(could change in the team meeting)
+Aligned on the cost function: MSE
+
+hyperparameters:
+    cost function
+    hidden layers
+    epochs
+    batch size
+    optimizer
+    Dropout ratio
+    learning rate
+    number of units of each layer
+
+Predicting one day in advance is your target.
+
+How should we decide the weights of each stock?
+Equal-weighted?easy to implement
+or select by apt model or camp model?
+
+What the logic to do the trading to limit the risk and maximize the return?
+
+
