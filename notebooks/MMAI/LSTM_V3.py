@@ -35,8 +35,9 @@ def readData(stockName, filename):
 def WriteToDataLake(predictions, stockName):
   columns = ["Date", "Prediction Close"]
   for pred in predictions:
-    df = spark.createDataFrame([(datetime.datetime.today(), pred)], columns)
-    df.repartition(1).write.mode("append").format('csv').options(header='true', delimiter=',', inferSchema='true').save("abfss://" + fileSystemName + "@" + adlsGen2AccountName + ".dfs.core.windows.net/MMAI_Finance/" + stockName +"/"+str(datetime.datetime.today())+"_Prediction/")
+    for p in pred:
+      df = spark.createDataFrame([(datetime.datetime.today(), p)], columns)
+      df.repartition(1).write.mode("append").format('csv').options(header='true', delimiter=',', inferSchema='true').save("abfss://" + fileSystemName + "@" + adlsGen2AccountName + ".dfs.core.windows.net/MMAI_Finance/" + stockName +"/"+str(datetime.datetime.today())+"_Prediction/")
 
 
 # COMMAND ----------
@@ -99,7 +100,7 @@ def Train_Test_WindowScaler(df):
   # Normalize test data
   test_data = scaler.transform(test_data).reshape(-1)
   
-  return train_data, test_data
+  return train_data, test_data, scaler
 
 # COMMAND ----------
 
@@ -348,7 +349,7 @@ def SamplePrediction(multi_cell, w, b):
 # COMMAND ----------
 
 def Model(tf_learning_rate, optimizer, tf_min_learning_rate, learning_rate, loss, all_mid_data, sample_inputs, sample_prediction, reset_sample_states, train_data, train_inputs, train_outputs, inc_gstep):
-  epochs = 10
+  epochs = 15
   valid_summary = 1 # Interval you make test predictions
 
   n_predict_once = 1 # Number of steps you continously predict for
@@ -493,11 +494,10 @@ def Pipeline():
     if row.path == "NaN":
       pass
     else:
-      try:
         df = readData(row.stock, row.path)
         pdf = df.select("*").toPandas() 
         print("Working with the data for the " + row.stock)
-        train_data, test_data = Train_Test_WindowScaler(pdf)
+        train_data, test_data, scaler = Train_Test_WindowScaler(pdf)
         print("1")
         date = MovingAverage(train_data, pdf)
         #store the MSE for the moving average 
@@ -515,7 +515,10 @@ def Pipeline():
         print("Sample Data prediction function has been made")
         prediction = Model(tf_learning_rate, optimizer, tf_min_learning_rate, learning_rate, loss, all_mid_data, sample_inputs, sample_prediction, reset_sample_states, train_data, train_inputs, train_outputs, inc_gstep)
         print("Model training and prediction has finished successfully")
-        WriteToDataLake(prediction, row.stock)
+        print(prediction)
+        updated_pred = scaler.inverse_transform(np.array([prediction])).tolist()
+        print(updated_pred)
+        WriteToDataLake(updated_pred, row.stock)
         print("prediction writte in the data lake")
         print("resetting the tensor flow")
         tf.reset_default_graph()
@@ -523,9 +526,24 @@ def Pipeline():
         sess.run(tf.global_variables_initializer())
         print("Variables have been re-initialized.")
         print("A new TensorFlow session has been created")
-      except:
-        pass
 
 # COMMAND ----------
 
 Pipeline()
+
+# COMMAND ----------
+
+# # scaler = MinMaxScaler()
+# prediction = 0.112
+
+# updated_pred = np.array([prediction]).tolist()
+
+# COMMAND ----------
+
+# #updated_pred
+# WriteToDataLake(updated_pred, "AAPL")
+
+
+# COMMAND ----------
+
+# updated_pred[0]
