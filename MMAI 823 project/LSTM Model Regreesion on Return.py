@@ -37,7 +37,7 @@ data = pd_reader.DataReader(
 )
 data = data[['Adj Close','High','Open','Close','Low']]
 #data.sort_values(by='Date', ascending=True,inplace =True)
-data["return"] = data["Adj Close"].shift(1) / data["Adj Close"] - 1
+data["return"] = np.log(data["Adj Close"].shift(1))-np.log(data["Adj Close"])
 #data["movement"] = data["return"].apply(lambda x:lable(x,tresh_hold))
 data = data.dropna()
 #data.drop(['return'],axis=1,inplace = True)
@@ -74,11 +74,11 @@ hidden_layer_sizes = [100,100]
 def build_model(hidden_layer_sizes,act,input_d):
   model = Sequential()
 
-  model.add(LSTM(units = hidden_layer_sizes[0], activation= act, return_sequences= True,input_shape =input_d))
-  model.add(Dropout(0.01))
+  model.add(LSTM(units = hidden_layer_sizes[0],go_backwards= True,return_sequences= True,input_shape =input_d))
+  model.add(Dropout(0.5))
 
-  model.add(LSTM(units=hidden_layer_sizes[len(hidden_layer_sizes)-1], activation=act))
-  model.add(Dropout(0.01))
+  model.add(LSTM(units=hidden_layer_sizes[len(hidden_layer_sizes)-1]))
+  model.add(Dropout(0.5))
 
   model.add(Dense(units=25))
   model.add(Dense(units=1))

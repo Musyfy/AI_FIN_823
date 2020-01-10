@@ -56,18 +56,18 @@ hidden_layer_sizes = [200,300,300,200,100]
 def build_model(hidden_layer_sizes,act,input_d):
   model = Sequential()
 
-  model.add(LSTM(units = hidden_layer_sizes[0], activation= act,return_sequences= True, input_shape =input_d))
+  model.add(LSTM(units = hidden_layer_sizes[0],return_sequences= True, input_shape =input_d))
   model.add(Dropout(0.2))
 
   for layer_size in hidden_layer_sizes[1:len(hidden_layer_sizes)-1]:
-    model.add(LSTM(units =layer_size, activation = act, return_sequences=True))
+    model.add(LSTM(units =layer_size, return_sequences=True))
     model.add(Dropout(0.3))
 
-  model.add(LSTM(units=hidden_layer_sizes[len(hidden_layer_sizes)-1], activation=act))
+  model.add(LSTM(units=hidden_layer_sizes[len(hidden_layer_sizes)-1]))
   model.add(Dropout(0.2))
 
   model.add(Dense(units=25))
-  model.add(Dense(units=1,activation=act))
+  model.add(Dense(units=1))
 
   model.compile(optimizer='adam', loss='mean_squared_error')
   return model
